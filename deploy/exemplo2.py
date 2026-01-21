@@ -66,12 +66,24 @@ app = agent_os.get_app()
 
 # RUN ===========================================================
 if __name__ == "__main__":
-    knowledge.add_content(
-        url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
-        metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
-        skip_if_exists=True,
-        reader=PDFReader()
-    )
+    import asyncio
+    
+    # Carregar PDF de forma assíncrona
+    async def load_pdf():
+        try:
+            await knowledge.add_content_async(
+                url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
+                metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
+                skip_if_exists=True,
+                reader=PDFReader()
+            )
+            print("PDF carregado com sucesso!")
+        except Exception as e:
+            print(f"Erro ao carregar PDF: {e}")
+    
+    # Carregar PDF antes de iniciar o servidor
+    asyncio.run(load_pdf())
+    
     # Em produção (Render), use a porta do ambiente e faça bind em 0.0.0.0
     port = int(os.getenv("PORT", "10000"))
     agent_os.serve(app="exemplo2:app", reload=False, host="0.0.0.0", port=port)
