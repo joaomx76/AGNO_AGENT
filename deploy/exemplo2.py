@@ -37,7 +37,7 @@ db = SqliteDb(session_table="agent_session", db_file="tmp/agent.db")
 agent = Agent(
     id="agente_pdf",
     name="Agente de PDF",
-    model=OpenAIChat(id="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY")),
+    model=OpenAIChat(id="gpt-5-nano", api_key=os.getenv("OPENAI_API_KEY")),
     db=db,
     knowledge=knowledge,
     enable_user_memories=True,
@@ -72,4 +72,7 @@ if __name__ == "__main__":
         skip_if_exists=True,
         reader=PDFReader()
     )
-    agent_os.serve(app="exemplo2:app", reload=False)
+    # Em produção (Render), use a porta do ambiente e faça bind em 0.0.0.0
+    port = int(os.getenv("PORT", "10000"))
+    agent_os.serve(app="exemplo2:app", reload=False, host="0.0.0.0", port=port)
+
