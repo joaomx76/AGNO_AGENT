@@ -95,8 +95,8 @@ if __name__ == "__main__":
                 
                 # Verificar se há documentos na base usando método síncrono
                 try:
-                    # Usar search() síncrono ao invés de search_async
-                    results = knowledge.search("Grendene", num_results=1)
+                    # Usar search() síncrono com parâmetro correto: max_results
+                    results = knowledge.search("Grendene", max_results=1)
                     if results and len(results) > 0:
                         print(f"✅ PDF carregado com sucesso! {len(results)} documento(s) encontrado(s) na busca de teste.")
                         return True
