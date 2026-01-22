@@ -110,6 +110,13 @@ if __name__ == "__main__":
     pdf_thread = threading.Thread(target=load_pdf_background, daemon=True)
     pdf_thread.start()
     
-    # Iniciar servidor (bloqueia aqui - Render detecta a porta rapidamente)
-    agent_os.serve(app="exemplo2:app", reload=False, host="0.0.0.0", port=port)
+    # Iniciar servidor com uvicorn diretamente (mais rápido para Render detectar porta)
+    import uvicorn
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info",
+        reload=False
+    )
 
