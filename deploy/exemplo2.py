@@ -3,41 +3,17 @@ from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIChat
 from agno.knowledge.knowledge import Knowledge
 from agno.knowledge.reader.pdf_reader import PDFReader
-from agno.knowledge.embedder.openai import OpenAIEmbedder
 from agno.vectordb.chroma import ChromaDb
 from agno.os import AgentOS
 
-
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-# Carrega .env da raiz primeiro, depois do .venv
-load_dotenv()
-load_dotenv('.venv/.env')
-
-# Verificar se a chave da OpenAI está configurada
-if not os.getenv("OPENAI_API_KEY"):
-    raise ValueError("OPENAI_API_KEY não encontrada. Configure a variável de ambiente no Render.")
+load_dotenv(find_dotenv())
 
 # RAG
-# IMPORTANTE:
-# - Se você mudou embedder/modelo, apague a coleção antiga para não misturar embeddings incompatíveis.
-# - A linha abaixo força o uso do embedder da OpenAI (text-embedding-3-small) para indexar e buscar.
-# - Adicionado retry para lidar com erros de conexão
-embedder = OpenAIEmbedder(
-    id="text-embedding-3-small",
-    api_key=os.getenv("OPENAI_API_KEY"),
-)
-
-vector_db = ChromaDb(
-    collection="pdf_agent",
-    path="tmp/chromadb",
-    persistent_client=True,
-    embedder=embedder,
-)
-
+vector_db = ChromaDb(collection="pdf_agent", path="tmp/chromadb", persistent_client=True)
 knowledge = Knowledge(vector_db=vector_db)
-
 
 db = SqliteDb(session_table="agent_session", db_file="tmp/agent.db")
 
@@ -48,75 +24,27 @@ agent = Agent(
     db=db,
     knowledge=knowledge,
     enable_user_memories=True,
-    instructions=[
-        "Você deve chamar o usuário de senhor.",
-        "Sempre use a ferramenta de busca na knowledge para responder perguntas sobre o PDF.",
-        "Quando responder, inclua os números e o contexto exato (trecho curto) encontrados no PDF.",
-    ],
+    instructions="Você deve chamar o usuário de senhor e busque informações no PDF",
     description="",
     search_knowledge=True,
-    add_knowledge_to_context=True,
     num_history_runs=3,
     debug_mode=True
 )
 
-
 # AGENTOS ===========================================================
 agent_os = AgentOS(
     name="Agente de PDF",
-    agents=[agent],
-    telemetry=False,
+    agents=[agent]
 )
 
 app = agent_os.get_app()
 
-
 # RUN ===========================================================
 if __name__ == "__main__":
-    import asyncio
-    import threading
-    
-    # Carregar PDF em background (depois que o servidor iniciar)
-    def load_pdf_background():
-        """Carrega o PDF em uma thread separada para não bloquear o servidor"""
-        async def load_pdf():
-            try:
-                print("📄 Carregando PDF em background...")
-                await knowledge.add_content_async(
-                    url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
-                    metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
-                    skip_if_exists=False,  # Forçar carregar sempre (Render apaga tmp/ a cada deploy)
-                    reader=PDFReader()
-                )
-                print("✅ PDF processado em background! 27 documentos inseridos.")
-                print("⚠️ Nota: Alguns embeddings podem falhar por erros de conexão, mas o servidor já está rodando.")
-            except Exception as e:
-                print(f"❌ Erro ao carregar PDF em background: {e}")
-                import traceback
-                traceback.print_exc()
-                print("⚠️ Servidor continua rodando. O PDF pode ser recarregado depois.")
-        
-        # Executar em um novo event loop na thread
-        asyncio.run(load_pdf())
-    
-    # Em produção (Render), use a porta do ambiente
-    # O Render define a variável PORT automaticamente
-    port = int(os.getenv("PORT", "10000"))
-    print(f"🚀 Iniciando servidor na porta {port} (host: 0.0.0.0)...")
-    print(f"📡 Servidor estará disponível em: http://0.0.0.0:{port}")
-    print("📄 PDF será carregado em background após o servidor iniciar...")
-    
-    # Iniciar carregamento do PDF em thread separada (não bloqueia)
-    pdf_thread = threading.Thread(target=load_pdf_background, daemon=True)
-    pdf_thread.start()
-    
-    # Iniciar servidor com uvicorn diretamente (mais rápido para Render detectar porta)
-    import uvicorn
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=port,
-        log_level="info",
-        reload=False
+    knowledge.add_content(
+        url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
+        metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
+        skip_if_exists=True,
+        reader=PDFReader()
     )
-
+    agent_os.serve(app="exemplo2:app", host="0.0.0.0", port=10000, reload=True)
