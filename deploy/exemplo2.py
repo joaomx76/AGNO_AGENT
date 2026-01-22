@@ -74,7 +74,7 @@ if __name__ == "__main__":
             await knowledge.add_content_async(
                 url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
                 metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
-                skip_if_exists=True,
+                skip_if_exists=False,  # Forçar carregar sempre (Render apaga tmp/ a cada deploy)
                 reader=PDFReader()
             )
             print("PDF carregado com sucesso!")
