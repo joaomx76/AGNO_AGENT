@@ -87,26 +87,28 @@ if __name__ == "__main__":
                     skip_if_exists=False,  # Forçar carregar sempre (Render apaga tmp/ a cada deploy)
                     reader=PDFReader()
                 )
-                print("PDF processado! Verificando documentos...")
+                print("PDF processado! Aguardando geração de embeddings...")
                 
-                # Aguardar um pouco para garantir que os embeddings foram gerados
-                await asyncio.sleep(2)
+                # Aguardar mais tempo para garantir que todos os embeddings foram gerados
+                # (os erros de conexão podem causar atrasos)
+                await asyncio.sleep(10)
                 
-                # Verificar se há documentos na base
+                # Verificar se há documentos na base usando método síncrono
                 try:
-                    results = await knowledge.search_async("Grendene", num_results=1)
+                    # Usar search() síncrono ao invés de search_async
+                    results = knowledge.search("Grendene", num_results=1)
                     if results and len(results) > 0:
                         print(f"✅ PDF carregado com sucesso! {len(results)} documento(s) encontrado(s) na busca de teste.")
                         return True
                     else:
                         print(f"⚠️ PDF processado mas nenhum documento encontrado na busca. Tentativa {attempt + 1}/{max_retries}")
                         if attempt < max_retries - 1:
-                            await asyncio.sleep(5)  # Aguardar antes de tentar novamente
+                            await asyncio.sleep(10)  # Aguardar mais tempo antes de tentar novamente
                             continue
                 except Exception as search_error:
                     print(f"⚠️ Erro ao verificar documentos: {search_error}. Tentativa {attempt + 1}/{max_retries}")
                     if attempt < max_retries - 1:
-                        await asyncio.sleep(5)
+                        await asyncio.sleep(10)
                         continue
                 
             except Exception as e:
@@ -132,6 +134,7 @@ if __name__ == "__main__":
     # Em produção (Render), use a porta do ambiente
     # O Render define a variável PORT automaticamente
     port = int(os.getenv("PORT", "10000"))
-    print(f"🚀 Iniciando servidor na porta {port}...")
+    print(f"🚀 Iniciando servidor na porta {port} (host: 0.0.0.0)...")
+    print(f"📡 Servidor estará disponível em: http://0.0.0.0:{port}")
     agent_os.serve(app="exemplo2:app", reload=False, host="0.0.0.0", port=port)
 
