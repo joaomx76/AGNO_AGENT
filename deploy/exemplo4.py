@@ -17,7 +17,7 @@ def get_response_stream(message: str):
                 "stream": "true"
             },
             stream=True,
-            timeout=30
+            timeout=120  # Aumentado para 120 segundos (permite serviço "acordar" e processar)
         )
         
         # Verificar status HTTP
@@ -50,7 +50,7 @@ def get_response_stream(message: str):
     except requests.exceptions.Timeout as e:
         yield {
             "event": "Error",
-            "content": f"❌ Timeout: A requisição demorou mais de 30 segundos.\n\nURL: {ENDPOINT}\n\nErro: {str(e)}"
+            "content": f"❌ Timeout: A requisição demorou mais de 120 segundos.\n\n💡 Dica: O serviço pode estar 'dormindo' (Render gratuito). Tente novamente em alguns segundos.\n\nURL: {ENDPOINT}\n\nErro: {str(e)}"
         }
     except requests.exceptions.RequestException as e:
         yield {
@@ -91,11 +91,20 @@ if prompt := st.chat_input("Digite sua mensagem..."):
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
         full_response = ""
+        
+        # Mostrar mensagem de processamento inicial
+        response_placeholder.info("⏳ Processando... (A primeira requisição pode demorar mais se o serviço estiver 'dormindo')")
     
     # processamento streaming
+    first_event_received = False
     try:
         for event in get_response_stream(prompt):
             event_type = event.get("event", "")
+            
+            # Limpar mensagem de processamento no primeiro evento válido
+            if not first_event_received and event_type != "Error":
+                response_placeholder.empty()
+                first_event_received = True
             
             # Tratar erros
             if event_type == "Error":
