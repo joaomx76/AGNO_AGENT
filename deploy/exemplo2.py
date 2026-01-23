@@ -40,9 +40,14 @@ agent = Agent(
     db=db,
     knowledge=knowledge,
     enable_user_memories=True,
-    instructions="Você deve chamar o usuário de senhor e busque informações no PDF",
+    instructions=[
+        "Você deve chamar o usuário de senhor.",
+        "Sempre use a ferramenta de busca na knowledge para responder perguntas sobre o PDF.",
+        "Quando responder, inclua os números e o contexto exato (trecho curto) encontrados no PDF.",
+    ],
     description="",
     search_knowledge=True,
+    add_knowledge_to_context=True,
     num_history_runs=3,
     debug_mode=True
 )
@@ -60,7 +65,7 @@ if __name__ == "__main__":
     knowledge.add_content(
         url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
         metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
-        skip_if_exists=True,
+        skip_if_exists=False,  # Força recarregamento (importante para Render com sistema de arquivos efêmero)
         reader=PDFReader()
     )
     port = int(os.getenv("PORT", "10000"))
