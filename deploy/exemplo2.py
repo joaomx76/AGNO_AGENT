@@ -8,6 +8,7 @@ from agno.vectordb.chroma import ChromaDb
 from agno.os import AgentOS
 
 import os
+import asyncio
 from dotenv import load_dotenv
 
 # Carrega .env da raiz primeiro, depois do .venv
@@ -62,11 +63,23 @@ app = agent_os.get_app()
 
 # RUN ===========================================================
 if __name__ == "__main__":
-    knowledge.add_content(
-        url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
-        metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
-        skip_if_exists=False,  # Força recarregamento (importante para Render com sistema de arquivos efêmero)
-        reader=PDFReader()
-    )
+    # Carregar PDF de forma assíncrona com logs e tratamento de erros
+    print("📄 Iniciando carregamento do PDF...")
+    try:
+        asyncio.run(knowledge.add_content_async(
+            url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
+            metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
+            skip_if_exists=False,  # Força recarregamento (importante para Render com sistema de arquivos efêmero)
+            reader=PDFReader()
+        ))
+        print("✅ PDF carregado com sucesso! Base de conhecimento pronta.")
+    except Exception as e:
+        print(f"❌ ERRO ao carregar PDF: {str(e)}")
+        print(f"⚠️  Tipo do erro: {type(e).__name__}")
+        print("⚠️  O servidor será iniciado, mas a base de conhecimento pode estar vazia.")
+        # Não interrompe o servidor, mas avisa sobre o problema
+    
+    # Iniciar servidor
     port = int(os.getenv("PORT", "10000"))
+    print(f"🚀 Iniciando servidor na porta {port}...")
     agent_os.serve(app="exemplo2:app", host="0.0.0.0", port=port, reload=False)
