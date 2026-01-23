@@ -3,16 +3,32 @@ from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIChat
 from agno.knowledge.knowledge import Knowledge
 from agno.knowledge.reader.pdf_reader import PDFReader
+from agno.knowledge.embedder.openai import OpenAIEmbedder
 from agno.vectordb.chroma import ChromaDb
 from agno.os import AgentOS
 
 import os
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 
-load_dotenv(find_dotenv())
+# Carrega .env da raiz primeiro, depois do .venv
+load_dotenv()
+load_dotenv('.venv/.env')
+
+# Verificar se a chave da OpenAI está configurada
+if not os.getenv("OPENAI_API_KEY"):
+    raise ValueError("OPENAI_API_KEY não encontrada. Verifique o arquivo .env na raiz do projeto ou em .venv/.env")
 
 # RAG
-vector_db = ChromaDb(collection="pdf_agent", path="tmp/chromadb", persistent_client=True)
+embedder = OpenAIEmbedder(
+    id="text-embedding-3-small",
+    api_key=os.getenv("OPENAI_API_KEY"),
+)
+vector_db = ChromaDb(
+    collection="pdf_agent",
+    path="tmp/chromadb",
+    persistent_client=True,
+    embedder=embedder
+)
 knowledge = Knowledge(vector_db=vector_db)
 
 db = SqliteDb(session_table="agent_session", db_file="tmp/agent.db")
@@ -47,4 +63,5 @@ if __name__ == "__main__":
         skip_if_exists=True,
         reader=PDFReader()
     )
-    agent_os.serve(app="exemplo2:app", host="0.0.0.0", port=10000, reload=True)
+    port = int(os.getenv("PORT", "10000"))
+    agent_os.serve(app="exemplo2:app", host="0.0.0.0", port=port, reload=False)
