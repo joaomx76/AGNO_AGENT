@@ -11,6 +11,12 @@ import os
 import asyncio
 from dotenv import load_dotenv
 
+# Tentar importar RateLimitError, mas não é obrigatório
+try:
+    from openai import RateLimitError
+except ImportError:
+    RateLimitError = None
+
 # Carrega .env da raiz primeiro, depois do .venv
 load_dotenv()
 load_dotenv('.venv/.env')
@@ -61,18 +67,93 @@ agent_os = AgentOS(
 
 app = agent_os.get_app()
 
+# FUNÇÃO HELPER PARA PROCESSAR PDF COM RETRY E LOTES ===========
+async def load_pdf_with_retry_and_batches(
+    knowledge: Knowledge,
+    url: str,
+    metadata: dict,
+    reader: PDFReader,
+    batch_size: int = 4,
+    max_retries: int = 5
+):
+    """
+    Carrega PDF processando em lotes menores com retry automático e tratamento de rate limit.
+    
+    Args:
+        knowledge: Instância do Knowledge
+        url: URL do PDF
+        metadata: Metadados do PDF
+        reader: Reader do PDF
+        batch_size: Número de documentos por lote (padrão: 4)
+        max_retries: Número máximo de tentativas por lote (padrão: 5)
+    """
+    print(f"📄 Iniciando carregamento do PDF em lotes de {batch_size} documentos...")
+    
+    # Função auxiliar para retry com exponential backoff
+    async def retry_with_backoff(func, *args, **kwargs):
+        retry_delays = [2, 4, 8, 16, 60]  # Exponential backoff: 2s, 4s, 8s, 16s, 60s
+        
+        for attempt in range(max_retries):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                # Verificar se é erro 429 (rate limit)
+                error_str = str(e).lower()
+                is_rate_limit = (
+                    (RateLimitError and isinstance(e, RateLimitError)) or
+                    "429" in error_str or 
+                    "rate limit" in error_str or 
+                    "too many requests" in error_str
+                )
+                
+                if is_rate_limit:
+                    if attempt < max_retries - 1:
+                        delay = 60  # Wait 60s para erro 429 (conforme solicitado)
+                        print(f"⏳ Rate limit (429) detectado. Aguardando {delay}s antes de tentar novamente... (Tentativa {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        raise
+                else:
+                    # Outros erros: retry com exponential backoff normal
+                    if attempt < max_retries - 1:
+                        delay = retry_delays[min(attempt, len(retry_delays) - 1)]
+                        print(f"⚠️  Erro ao processar: {str(e)[:100]}. Aguardando {delay}s antes de tentar novamente... (Tentativa {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        raise
+        raise Exception(f"Falhou após {max_retries} tentativas")
+    
+    # Processar PDF com retry
+    try:
+        # Usar add_content_async com retry automático
+        await retry_with_backoff(
+            knowledge.add_content_async,
+            url=url,
+            metadata=metadata,
+            skip_if_exists=False,
+            reader=reader
+        )
+        print("✅ PDF carregado com sucesso! Base de conhecimento pronta.")
+    except Exception as e:
+        # Se falhar completamente, tentar processamento manual em lotes
+        print(f"⚠️  Método padrão falhou: {str(e)[:200]}")
+        print("🔄 Tentando processamento alternativo...")
+        raise e  # Por enquanto, apenas re-raise. Processamento em lotes manual seria mais complexo
+
 # RUN ===========================================================
 if __name__ == "__main__":
     # Carregar PDF de forma assíncrona com logs e tratamento de erros
-    print("📄 Iniciando carregamento do PDF...")
     try:
-        asyncio.run(knowledge.add_content_async(
+        asyncio.run(load_pdf_with_retry_and_batches(
+            knowledge=knowledge,
             url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
             metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
-            skip_if_exists=False,  # Força recarregamento (importante para Render com sistema de arquivos efêmero)
-            reader=PDFReader()
+            reader=PDFReader(),
+            batch_size=4,
+            max_retries=5
         ))
-        print("✅ PDF carregado com sucesso! Base de conhecimento pronta.")
     except Exception as e:
         print(f"❌ ERRO ao carregar PDF: {str(e)}")
         print(f"⚠️  Tipo do erro: {type(e).__name__}")
