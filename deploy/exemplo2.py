@@ -144,23 +144,28 @@ async def load_pdf_with_retry_and_batches(
 
 # RUN ===========================================================
 if __name__ == "__main__":
-    # Carregar PDF de forma assíncrona com logs e tratamento de erros
+    import time
+    
+    print("📄 Carregando PDF...")
+    
     try:
-        asyncio.run(load_pdf_with_retry_and_batches(
-            knowledge=knowledge,
-            url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
-            metadata={"source": "Grendene", "type":"pdf", "description": "Relatório Trimestral 2T25"},
+        # Adicionar com skip_existing para evitar reprocessamento
+        knowledge.load_and_index(
             reader=PDFReader(),
-            batch_size=4,
-            max_retries=5
-        ))
+            url="https://s3.sa-east-1.amazonaws.com/static.grendene.aatb.com.br/releases/2417_2T25.pdf",
+            metadata={"source": "Grendene", "type": "pdf", "description": "Relatório Trimestral 2T25"},
+            upsert=True,
+            skip_existing=True,  # ✅ Não reprocessa documentos já existentes
+            chunk_size=500,      # ✅ Chunks menores = menos carga
+        )
+        
+        print("✅ PDF carregado com sucesso!")
+        
     except Exception as e:
-        print(f"❌ ERRO ao carregar PDF: {str(e)}")
-        print(f"⚠️  Tipo do erro: {type(e).__name__}")
-        print("⚠️  O servidor será iniciado, mas a base de conhecimento pode estar vazia.")
-        # Não interrompe o servidor, mas avisa sobre o problema
+        print(f"❌ ERRO: {str(e)}")
+        print("⚠️ Verifique sua API Key e créditos da OpenAI")
     
     # Iniciar servidor
     port = int(os.getenv("PORT", "10000"))
     print(f"🚀 Iniciando servidor na porta {port}...")
-    agent_os.serve(app="exemplo2:app", host="0.0.0.0", port=port, reload=False)
+    agent_os.serve(app="app2:app", host="0.0.0.0", port=port, reload=False)
