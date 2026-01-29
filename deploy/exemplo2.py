@@ -168,4 +168,4 @@ if __name__ == "__main__":
     # Iniciar servidor
     port = int(os.getenv("PORT", "10000"))
     print(f"🚀 Iniciando servidor na porta {port}...")
-    agent_os.serve(app="app2:app", host="0.0.0.0", port=port, reload=False)
+    agent_os.serve(app="exemplo2:app", host="0.0.0.0", port=port, reload=False)
